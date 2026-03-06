@@ -46,6 +46,10 @@ interface GatewaySummary {
   is_primary: number
 }
 
+function isLocalHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
 export default function Home() {
   const router = useRouter()
   const { connect } = useWebSocket()
@@ -65,6 +69,15 @@ export default function Home() {
 
   useEffect(() => {
     setIsClient(true)
+
+    // OpenClaw control-ui device identity requires a secure browser context.
+    // Redirect remote HTTP sessions to HTTPS automatically to avoid handshake failures.
+    if (window.location.protocol === 'http:' && !isLocalHost(window.location.hostname)) {
+      const secureUrl = new URL(window.location.href)
+      secureUrl.protocol = 'https:'
+      window.location.replace(secureUrl.toString())
+      return
+    }
 
     const connectWithEnvFallback = () => {
       const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''

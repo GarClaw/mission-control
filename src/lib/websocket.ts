@@ -17,7 +17,7 @@ const log = createClientLogger('WebSocket')
 
 // Gateway protocol version (v3 required by OpenClaw 2026.x)
 const PROTOCOL_VERSION = 3
-const DEFAULT_GATEWAY_CLIENT_ID = process.env.NEXT_PUBLIC_GATEWAY_CLIENT_ID || 'mission-control-web'
+const DEFAULT_GATEWAY_CLIENT_ID = process.env.NEXT_PUBLIC_GATEWAY_CLIENT_ID || 'openclaw-control-ui'
 
 // Heartbeat configuration
 const PING_INTERVAL_MS = 30_000
@@ -201,9 +201,9 @@ export function useWebSocket() {
     const cachedToken = getCachedDeviceToken()
 
     const clientId = DEFAULT_GATEWAY_CLIENT_ID
-    const clientMode = 'operator'
+    const clientMode = 'ui'
     const role = 'operator'
-    const scopes = ['operator.read', 'operator.write', 'operator.admin']
+    const scopes = ['operator.admin']
     const authToken = authTokenRef.current || undefined
     const tokenForSignature = authToken ?? cachedToken ?? ''
 

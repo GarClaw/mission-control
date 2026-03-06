@@ -1287,6 +1287,8 @@ export function ConfigTab({
   const [agentMdInput, setAgentMdInput] = useState('')
   const [savingIdentityMd, setSavingIdentityMd] = useState(false)
   const [savingAgentMd, setSavingAgentMd] = useState(false)
+  const [workspaceDocs, setWorkspaceDocs] = useState<Array<{ name: string; exists: boolean; content: string }>>([])
+  const [loadingWorkspaceDocs, setLoadingWorkspaceDocs] = useState(false)
 
   useEffect(() => {
     setConfig(agent.config || {})
@@ -1297,6 +1299,28 @@ export function ConfigTab({
     setIdentityMdInput(String(workspaceFiles?.identityMd || ''))
     setAgentMdInput(String(workspaceFiles?.agentMd || ''))
   }, [workspaceFiles?.identityMd, workspaceFiles?.agentMd])
+
+  useEffect(() => {
+    const loadWorkspaceDocs = async () => {
+      setLoadingWorkspaceDocs(true)
+      try {
+        const response = await fetch(`/api/agents/${agent.id}/files`)
+        if (!response.ok) return
+        const payload = await response.json()
+        const entries = Object.entries(payload?.files || {}).map(([name, value]: [string, any]) => ({
+          name,
+          exists: Boolean(value?.exists),
+          content: String(value?.content || ''),
+        }))
+        setWorkspaceDocs(entries)
+      } catch {
+        setWorkspaceDocs([])
+      } finally {
+        setLoadingWorkspaceDocs(false)
+      }
+    }
+    loadWorkspaceDocs()
+  }, [agent.id])
 
   useEffect(() => {
     const loadAvailableModels = async () => {
@@ -1702,6 +1726,31 @@ export function ConfigTab({
                 <pre className="bg-surface-1 rounded p-3 text-xs text-muted-foreground overflow-auto whitespace-pre-wrap min-h-[120px]">
                   {agentMdInput || 'agent.md not found or empty'}
                 </pre>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground font-medium">Other markdown files (read-only)</label>
+              {loadingWorkspaceDocs ? (
+                <div className="text-xs text-muted-foreground">Loading workspace files...</div>
+              ) : (
+                <div className="space-y-2">
+                  {workspaceDocs
+                    .filter((doc) => !['identity.md', 'agent.md'].includes(doc.name))
+                    .map((doc) => (
+                      <div key={doc.name} className="bg-surface-1 rounded p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-mono text-foreground">{doc.name}</span>
+                          <span className={`text-2xs ${doc.exists ? 'text-green-400' : 'text-muted-foreground'}`}>
+                            {doc.exists ? `${doc.content.length} chars` : 'missing'}
+                          </span>
+                        </div>
+                        <pre className="text-xs text-muted-foreground overflow-auto whitespace-pre-wrap max-h-32">
+                          {doc.exists ? doc.content : `${doc.name} not found`}
+                        </pre>
+                      </div>
+                    ))}
+                </div>
               )}
             </div>
           </div>

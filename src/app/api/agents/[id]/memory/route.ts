@@ -60,7 +60,7 @@ export async function GET(
     try {
       const agentConfig = agent.config ? JSON.parse(agent.config) : {};
       const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name);
-      const match = readAgentWorkspaceFile(candidates, ['WORKING.md', 'working.md']);
+      const match = readAgentWorkspaceFile(candidates, ['WORKING.md', 'working.md', 'MEMORY.md', 'memory.md']);
       if (match.exists) {
         workingMemory = match.content;
         source = 'workspace';

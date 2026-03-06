@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync'
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
+import { runOpenClaw } from '@/lib/command'
 
 /**
  * GET /api/agents/[id] - Get a single agent by ID or name
@@ -205,6 +206,13 @@ export async function DELETE(
     const db = getDatabase()
     const { id } = await params
     const workspaceId = auth.user.workspace_id ?? 1;
+    let removeWorkspace = false
+    try {
+      const body = await request.json()
+      removeWorkspace = Boolean(body?.remove_workspace)
+    } catch {
+      // Optional body
+    }
 
     let agent
     if (isNaN(Number(id))) {
@@ -217,6 +225,24 @@ export async function DELETE(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
+    if (removeWorkspace) {
+      const agentConfig = agent.config ? JSON.parse(agent.config) : {}
+      const openclawId =
+        String(agentConfig?.openclawId || agent.name || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9._-]+/g, '-')
+          .replace(/^-+|-+$/g, '') || agent.name
+      try {
+        await runOpenClaw(['agents', 'remove', openclawId, '--non-interactive'], { timeoutMs: 30000 })
+      } catch (err: any) {
+        logger.error({ err, openclawId, agent: agent.name }, 'Failed to remove OpenClaw agent/workspace')
+        return NextResponse.json(
+          { error: `Failed to remove OpenClaw workspace for ${agent.name}: ${err?.message || 'unknown error'}` },
+          { status: 502 }
+        )
+      }
+    }
+
     db.prepare('DELETE FROM agents WHERE id = ? AND workspace_id = ?').run(agent.id, workspaceId)
 
     db_helpers.logActivity(
@@ -225,13 +251,13 @@ export async function DELETE(
       agent.id,
       auth.user.username,
       `Deleted agent: ${agent.name}`,
-      { name: agent.name, role: agent.role },
+      { name: agent.name, role: agent.role, remove_workspace: removeWorkspace },
       workspaceId
     )
 
     eventBus.broadcast('agent.deleted', { id: agent.id, name: agent.name })
 
-    return NextResponse.json({ success: true, deleted: agent.name })
+    return NextResponse.json({ success: true, deleted: agent.name, remove_workspace: removeWorkspace })
   } catch (error) {
     logger.error({ err: error }, 'DELETE /api/agents/[id] error')
     return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 })

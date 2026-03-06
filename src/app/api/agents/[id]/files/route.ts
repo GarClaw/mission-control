@@ -8,13 +8,27 @@ import { resolveWithin } from '@/lib/paths'
 import { getAgentWorkspaceCandidates, readAgentWorkspaceFile } from '@/lib/agent-workspace'
 import { logger } from '@/lib/logger'
 
-const ALLOWED_FILES = new Set(['agent.md', 'identity.md', 'soul.md', 'WORKING.md', 'TOOLS.md'])
+const ALLOWED_FILES = new Set([
+  'agent.md',
+  'identity.md',
+  'soul.md',
+  'WORKING.md',
+  'MEMORY.md',
+  'TOOLS.md',
+  'AGENTS.md',
+  'MISSION.md',
+  'USER.md',
+])
 const FILE_ALIASES: Record<string, string[]> = {
   'agent.md': ['agent.md', 'AGENT.md', 'MISSION.md', 'USER.md'],
   'identity.md': ['identity.md', 'IDENTITY.md'],
   'soul.md': ['soul.md', 'SOUL.md'],
   'WORKING.md': ['WORKING.md', 'working.md'],
+  'MEMORY.md': ['MEMORY.md', 'memory.md'],
   'TOOLS.md': ['TOOLS.md', 'tools.md'],
+  'AGENTS.md': ['AGENTS.md', 'agents.md'],
+  'MISSION.md': ['MISSION.md', 'mission.md'],
+  'USER.md': ['USER.md', 'user.md'],
 }
 
 function resolveAgentWorkspacePath(workspace: string): string {
@@ -51,7 +65,9 @@ export async function GET(
     }
     const safeWorkspace = candidates[0]
     const requested = (new URL(request.url).searchParams.get('file') || '').trim()
-    const files = requested ? [requested] : ['agent.md', 'identity.md', 'soul.md', 'WORKING.md', 'TOOLS.md']
+    const files = requested
+      ? [requested]
+      : ['agent.md', 'identity.md', 'soul.md', 'WORKING.md', 'MEMORY.md', 'TOOLS.md', 'AGENTS.md', 'MISSION.md', 'USER.md']
 
     const payload: Record<string, { exists: boolean; content: string }> = {}
     for (const file of files) {

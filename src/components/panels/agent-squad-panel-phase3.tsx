@@ -203,6 +203,27 @@ export function AgentSquadPanelPhase3() {
     }
   }
 
+  const deleteAgent = async (agentId: number, removeWorkspace: boolean) => {
+    const response = await fetch(`/api/agents/${agentId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remove_workspace: removeWorkspace }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to delete agent')
+    }
+
+    setSyncToast(
+      removeWorkspace
+        ? `Deleted agent and workspace: ${payload?.deleted || agentId}`
+        : `Deleted agent: ${payload?.deleted || agentId}`,
+    )
+    fetchAgents()
+    setTimeout(() => setSyncToast(null), 5000)
+  }
+
   // Format last seen time
   const formatLastSeen = (timestamp?: number) => {
     if (!timestamp) return 'Never'
@@ -466,6 +487,7 @@ export function AgentSquadPanelPhase3() {
           onUpdate={fetchAgents}
           onStatusUpdate={updateAgentStatus}
           onWakeAgent={wakeAgent}
+          onDelete={deleteAgent}
         />
       )}
 
@@ -498,13 +520,15 @@ function AgentDetailModalPhase3({
   onClose,
   onUpdate,
   onStatusUpdate,
-  onWakeAgent
+  onWakeAgent,
+  onDelete
 }: {
   agent: Agent
   onClose: () => void
   onUpdate: () => void
   onStatusUpdate: (name: string, status: Agent['status'], activity?: string) => Promise<void>
   onWakeAgent: (name: string, sessionKey: string) => Promise<void>
+  onDelete: (agentId: number, removeWorkspace: boolean) => Promise<void>
 }) {
   const [agentState, setAgentState] = useState<Agent & { config?: any; working_memory?: string }>(agent as Agent & { config?: any; working_memory?: string })
   const [activeTab, setActiveTab] = useState<'overview' | 'soul' | 'memory' | 'config' | 'tasks' | 'activity'>('overview')
@@ -522,6 +546,8 @@ function AgentDetailModalPhase3({
   const [soulTemplates, setSoulTemplates] = useState<SoulTemplate[]>([])
   const [heartbeatData, setHeartbeatData] = useState<HeartbeatResponse | null>(null)
   const [loadingHeartbeat, setLoadingHeartbeat] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     setAgentState(agent as Agent & { config?: any; working_memory?: string })
@@ -717,6 +743,23 @@ function AgentDetailModalPhase3({
     { id: 'activity', label: 'Activity', icon: 'A' }
   ]
 
+  const handleDelete = async (removeWorkspace: boolean) => {
+    const scope = removeWorkspace ? 'agent and workspace' : 'agent'
+    const confirmed = window.confirm(`Delete ${scope} for "${agentState.name}"? This cannot be undone.`)
+    if (!confirmed) return
+
+    setDeleteBusy(true)
+    setDeleteError(null)
+    try {
+      await onDelete(agentState.id, removeWorkspace)
+      onClose()
+    } catch (error: any) {
+      setDeleteError(error?.message || `Failed to delete ${scope}`)
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4"
@@ -751,6 +794,24 @@ function AgentDetailModalPhase3({
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDelete(false)}
+                  disabled={deleteBusy}
+                  className="px-3 py-1.5 text-xs rounded-md border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition-smooth"
+                  title="Remove agent from Mission Control"
+                >
+                  {deleteBusy ? 'Deleting...' : 'Delete Agent'}
+                </button>
+                <button
+                  onClick={() => handleDelete(true)}
+                  disabled={deleteBusy}
+                  className="px-3 py-1.5 text-xs rounded-md border border-rose-600/50 bg-rose-600/20 text-rose-200 hover:bg-rose-600/30 disabled:opacity-50 transition-smooth"
+                  title="Remove agent and OpenClaw workspace"
+                >
+                  {deleteBusy ? 'Deleting...' : 'Delete Agent + Workspace'}
+                </button>
+              </div>
               <button
                 onClick={onClose}
                 aria-label="Close agent details"
@@ -760,6 +821,12 @@ function AgentDetailModalPhase3({
               </button>
             </div>
           </div>
+
+          {deleteError && (
+            <div className="mt-3 rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {deleteError}
+            </div>
+          )}
 
           {/* Tab Navigation */}
           <div className="flex gap-1.5 mt-5 overflow-x-auto pb-1">

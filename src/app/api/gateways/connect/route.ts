@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     browserProtocol: request.nextUrl.protocol,
   })
 
-  const envToken = (process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || '').trim()
+  const envToken = (process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || '').trim()
   const token = (gateway.token || '').trim() || envToken
 
   return NextResponse.json({

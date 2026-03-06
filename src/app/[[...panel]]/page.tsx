@@ -67,7 +67,6 @@ export default function Home() {
     setIsClient(true)
 
     const connectWithEnvFallback = () => {
-      const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
       const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
       const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
       const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
@@ -75,7 +74,7 @@ export default function Home() {
         process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
         (window.location.protocol === 'https:' ? 'wss' : 'ws')
       const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
-      connect(wsUrl, wsToken)
+      connect(wsUrl)
     }
 
     const connectWithPrimaryGateway = async (): Promise<boolean> => {

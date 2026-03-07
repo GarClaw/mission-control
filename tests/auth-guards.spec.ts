@@ -25,6 +25,9 @@ const PROTECTED_GET_ENDPOINTS = [
   '/api/tokens',
   '/api/search?q=test',
   '/api/audit',
+  '/api/onboarding',
+  '/api/security-scan',
+  '/api/diagnostics',
 ]
 
 test.describe('Auth Guards (Issue #4)', () => {

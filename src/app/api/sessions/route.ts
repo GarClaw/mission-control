@@ -6,6 +6,8 @@ import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
+const LOCAL_SESSION_ACTIVE_WINDOW_MS = 90 * 60 * 1000
+
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -86,7 +88,10 @@ function getLocalClaudeSessions() {
     return rows.map((s) => {
       const total = (s.input_tokens || 0) + (s.output_tokens || 0)
       const lastMsg = s.last_message_at ? new Date(s.last_message_at).getTime() : 0
-      const isActive = s.is_active === 1
+      // Trust scanner state first, but fall back to derived recency so UI doesn't
+      // show stale "xh ago" when the active flag lags behind disk updates.
+      const derivedActive = lastMsg > 0 && (Date.now() - lastMsg) < LOCAL_SESSION_ACTIVE_WINDOW_MS
+      const isActive = s.is_active === 1 || derivedActive
       const effectiveLastActivity = isActive ? Date.now() : lastMsg
       return {
         id: s.session_id,

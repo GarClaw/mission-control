@@ -417,6 +417,9 @@ function SessionConversationView({
   const [colorDraft, setColorDraft] = useState(session.colorTag || '')
   const [prefBusy, setPrefBusy] = useState(false)
   const [prefError, setPrefError] = useState<string | null>(null)
+  const hasPrefChanges =
+    nameDraft.trim() !== (session.displayName || '').trim() ||
+    colorDraft !== (session.colorTag || '')
 
   useEffect(() => {
     setNameDraft(session.displayName || '')
@@ -534,7 +537,7 @@ function SessionConversationView({
             onClick={handleSavePrefs}
             size="sm"
             variant="outline"
-            disabled={prefBusy || !session.prefKey}
+            disabled={prefBusy || !session.prefKey || !hasPrefChanges}
             className="h-8 px-3 text-xs"
           >
             {prefBusy ? 'Saving...' : 'Save'}
@@ -583,6 +586,12 @@ function SessionConversationView({
           <input
             value={continuePrompt}
             onChange={(e) => setContinuePrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void handleContinueSession()
+              }
+            }}
             placeholder="Send prompt to this local session..."
             className="h-8 flex-1 rounded border border-border/60 bg-surface-1 px-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />

@@ -83,12 +83,14 @@ const statusIcons: Record<string, string> = {
   error: '!',
 }
 
-const statusCardStyles: Record<Agent['status'], { edge: string; glow: string; dot: string }> = {
-  offline: {
-    edge: 'from-slate-400/60 to-slate-600/30',
-    glow: 'from-slate-500/10 via-transparent to-transparent',
-    dot: 'bg-slate-400',
-  },
+const defaultCardStyle = {
+  edge: 'from-slate-400/60 to-slate-600/30',
+  glow: 'from-slate-500/10 via-transparent to-transparent',
+  dot: 'bg-slate-400',
+}
+
+const statusCardStyles: Record<string, { edge: string; glow: string; dot: string }> = {
+  offline: defaultCardStyle,
   idle: {
     edge: 'from-emerald-300/80 to-emerald-600/30',
     glow: 'from-emerald-400/15 via-transparent to-transparent',
@@ -409,7 +411,7 @@ export function AgentSquadPanelPhase3() {
                   className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border hover:shadow-lg cursor-pointer"
                   onClick={() => setSelectedAgent(agent)}
                 >
-                  <div className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${statusCardStyles[agent.status].edge}`} />
+                  <div className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${(statusCardStyles[agent.status] || defaultCardStyle).edge}`} />
 
                   {/* Header: avatar + name + status */}
                   <div className="flex items-start justify-between mb-2">
@@ -441,7 +443,7 @@ export function AgentSquadPanelPhase3() {
                         <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" title="Recent heartbeat" />
                       )}
                       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs capitalize ${statusBadgeStyles[agent.status]}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${statusCardStyles[agent.status].dot}`} />
+                        <span className={`h-1.5 w-1.5 rounded-full ${(statusCardStyles[agent.status] || defaultCardStyle).dot}`} />
                         {agent.status}
                       </span>
                     </div>

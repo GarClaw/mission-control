@@ -7,6 +7,58 @@ import { createClientLogger } from '@/lib/client-logger'
 const log = createClientLogger('CronManagement')
 import { buildDayKey, getCronOccurrences } from '@/lib/cron-occurrences'
 
+interface DayJobSummary {
+  job: CronJob
+  runCount: number
+  firstRunMs: number
+}
+
+function describeCronFrequency(schedule: string): string {
+  const parts = schedule.replace(/\s*\([^)]+\)$/, '').trim().split(/\s+/)
+  if (parts.length !== 5) return schedule
+
+  const [minute, hour, dom, mon, dow] = parts
+
+  // Every minute
+  if (minute === '*' && hour === '*') return 'every minute'
+  // Every N minutes
+  if (minute.startsWith('*/') && hour === '*') return `every ${minute.slice(2)}m`
+  // Every hour at :MM
+  if (/^\d+$/.test(minute) && hour === '*') return `hourly at :${minute.padStart(2, '0')}`
+  // Every N hours
+  if (/^\d+$/.test(minute) && hour.startsWith('*/')) return `every ${hour.slice(2)}h`
+  // Specific hour(s) daily
+  if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && dom === '*' && mon === '*') {
+    const h = Number(hour)
+    const m = Number(minute)
+    const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+    if (dow !== '*') return `${time} (select days)`
+    return `daily at ${time}`
+  }
+  // Weekly
+  if (dom === '*' && mon === '*' && dow !== '*') return 'weekly'
+  // Monthly
+  if (dom !== '*' && mon === '*' && dow === '*') return 'monthly'
+
+  return schedule
+}
+
+const AGENT_COLORS = [
+  'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+  'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+]
+
+function getAgentColorClass(agentId: string, allAgents: string[]): string {
+  const idx = allAgents.indexOf(agentId)
+  return AGENT_COLORS[idx >= 0 ? idx % AGENT_COLORS.length : 0]
+}
+
 interface NewJobForm {
   name: string
   schedule: string
@@ -413,46 +465,73 @@ export function CronManagementPanel() {
     return { startMs: agendaStart, endMs: addDays(startOfDay(new Date()), 30).getTime() }
   }, [calendarView, dayEnd, dayStart, monthGridStart, weekStart])
 
+  // Aggregate: unique jobs per day with run count (for week/month cells)
+  const jobSummariesByDay = useMemo(() => {
+    const dayMap = new Map<string, DayJobSummary[]>()
+    for (const job of filteredJobs) {
+      const occurrences = getCronOccurrences(job.schedule, calendarBounds.startMs, calendarBounds.endMs, 5000)
+
+      // Fallback for unparseable schedules
+      if (occurrences.length === 0 && typeof job.nextRun === 'number' && job.nextRun >= calendarBounds.startMs && job.nextRun < calendarBounds.endMs) {
+        occurrences.push({ atMs: job.nextRun, dayKey: buildDayKey(new Date(job.nextRun)) })
+      }
+
+      // Group occurrences by day for this job
+      const perDay = new Map<string, { count: number; firstMs: number }>()
+      for (const occ of occurrences) {
+        const existing = perDay.get(occ.dayKey)
+        if (existing) {
+          existing.count++
+          if (occ.atMs < existing.firstMs) existing.firstMs = occ.atMs
+        } else {
+          perDay.set(occ.dayKey, { count: 1, firstMs: occ.atMs })
+        }
+      }
+
+      for (const [dayKey, { count, firstMs }] of perDay) {
+        const existing = dayMap.get(dayKey) || []
+        existing.push({ job, runCount: count, firstRunMs: firstMs })
+        dayMap.set(dayKey, existing)
+      }
+    }
+
+    // Sort each day's jobs by first run time
+    for (const [, summaries] of dayMap) {
+      summaries.sort((a, b) => a.firstRunMs - b.firstRunMs)
+    }
+    return dayMap
+  }, [calendarBounds.endMs, calendarBounds.startMs, filteredJobs])
+
+  // Flat occurrence list for agenda view only (capped per job)
   const calendarOccurrences = useMemo(() => {
+    if (calendarView !== 'agenda') return []
     const rows: Array<{ job: CronJob; atMs: number; dayKey: string }> = []
     for (const job of filteredJobs) {
-      const occurrences = getCronOccurrences(job.schedule, calendarBounds.startMs, calendarBounds.endMs, 1000)
+      const occurrences = getCronOccurrences(job.schedule, calendarBounds.startMs, calendarBounds.endMs, 50)
       for (const occurrence of occurrences) {
         rows.push({ job, atMs: occurrence.atMs, dayKey: occurrence.dayKey })
       }
-
       if (occurrences.length === 0 && typeof job.nextRun === 'number' && job.nextRun >= calendarBounds.startMs && job.nextRun < calendarBounds.endMs) {
         rows.push({ job, atMs: job.nextRun, dayKey: buildDayKey(new Date(job.nextRun)) })
       }
     }
-
     rows.sort((a, b) => a.atMs - b.atMs)
-    return rows
-  }, [calendarBounds.endMs, calendarBounds.startMs, filteredJobs])
+    return rows.slice(0, 500)
+  }, [calendarBounds.endMs, calendarBounds.startMs, calendarView, filteredJobs])
 
-  const occurrencesByDay = useMemo(() => {
-    const dayMap = new Map<string, Array<{ job: CronJob; atMs: number }>>()
-    for (const row of calendarOccurrences) {
-      const existing = dayMap.get(row.dayKey) || []
-      existing.push({ job: row.job, atMs: row.atMs })
-      dayMap.set(row.dayKey, existing)
-    }
-    return dayMap
-  }, [calendarOccurrences])
-
-  const dayJobs = occurrencesByDay.get(buildDayKey(dayStart)) || []
+  const dayJobSummaries = jobSummariesByDay.get(buildDayKey(dayStart)) || []
 
   const jobsByWeekDay = weekDays.map((date) => ({
     date,
-    jobs: occurrencesByDay.get(buildDayKey(date)) || [],
+    jobs: jobSummariesByDay.get(buildDayKey(date)) || [],
   }))
 
   const jobsByMonthDay = monthDays.map((date) => ({
     date,
-    jobs: occurrencesByDay.get(buildDayKey(date)) || [],
+    jobs: jobSummariesByDay.get(buildDayKey(date)) || [],
   }))
 
-  const selectedDayJobs = occurrencesByDay.get(buildDayKey(selectedCalendarDate)) || []
+  const selectedDayJobs = jobSummariesByDay.get(buildDayKey(selectedCalendarDate)) || []
 
   const moveCalendar = (direction: -1 | 1) => {
     setCalendarDate((prev) => {
@@ -610,20 +689,28 @@ export function CronManagementPanel() {
 
             {calendarView === 'day' && (
               <div className="border border-border rounded-lg p-3">
-                {dayJobs.length === 0 ? (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">{dayJobSummaries.length} unique jobs</span>
+                </div>
+                {dayJobSummaries.length === 0 ? (
                   <div className="text-sm text-muted-foreground">No scheduled jobs for this day.</div>
                 ) : (
-                  <div className="space-y-2">
-                    {dayJobs.map((row) => (
+                  <div className="space-y-1.5 max-h-96 overflow-y-auto">
+                    {dayJobSummaries.map((row) => (
                       <Button
-                        key={`day-${row.job.id || row.job.name}-${row.atMs}`}
+                        key={`day-${row.job.id || row.job.name}`}
                         onClick={() => handleJobSelect(row.job)}
                         variant="outline"
-                        className="w-full p-2 h-auto bg-secondary/40 hover:bg-secondary text-left flex flex-col items-start"
+                        className={`w-full p-2 h-auto text-left flex items-center justify-between gap-2 border ${getAgentColorClass(row.job.agentId || '', uniqueAgents)}`}
                       >
-                        <div className="text-sm font-medium text-foreground">{row.job.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(row.atMs).toLocaleTimeString()} · {row.job.agentId || 'system'} · {row.job.enabled ? 'enabled' : 'disabled'}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-foreground truncate">{row.job.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {row.job.agentId || 'system'} · {describeCronFrequency(row.job.schedule)}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          {row.runCount > 1 ? `${row.runCount} runs` : new Date(row.firstRunMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </Button>
                     ))}
@@ -634,28 +721,44 @@ export function CronManagementPanel() {
 
             {calendarView === 'week' && (
               <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
-                {jobsByWeekDay.map(({ date, jobs }) => (
-                  <Button
-                    key={`week-${date.toISOString()}`}
-                    onClick={() => setSelectedCalendarDate(startOfDay(date))}
-                    variant="outline"
-                    className={`h-auto p-2 min-h-36 text-left flex flex-col items-start ${isSameDay(date, selectedCalendarDate) ? 'bg-primary/10 border-primary/40' : 'hover:bg-secondary/50'}`}
-                  >
-                    <div className={`text-xs font-medium mb-2 ${isSameDay(date, new Date()) ? 'text-primary' : 'text-muted-foreground'}`}>
-                      {date.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' })}
-                    </div>
-                    <div className="space-y-1">
-                      {jobs.slice(0, 4).map((row) => (
-                        <div key={`week-job-${row.job.id || row.job.name}-${row.atMs}`} className="text-xs px-2 py-1 rounded bg-secondary text-foreground truncate" title={row.job.name}>
-                          {new Date(row.atMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} {row.job.name}
+                {jobsByWeekDay.map(({ date, jobs }) => {
+                  const totalRuns = jobs.reduce((sum, j) => sum + j.runCount, 0)
+                  return (
+                    <div
+                      key={`week-${date.toISOString()}`}
+                      onClick={() => setSelectedCalendarDate(startOfDay(date))}
+                      className={`rounded-lg border p-2 min-h-36 cursor-pointer flex flex-col ${isSameDay(date, selectedCalendarDate) ? 'bg-primary/10 border-primary/40' : 'border-border hover:bg-secondary/50'}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-xs font-medium ${isSameDay(date, new Date()) ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })}
+                        </span>
+                        {jobs.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">{jobs.length} jobs</span>
+                        )}
+                      </div>
+                      <div className="space-y-1 flex-1 overflow-hidden">
+                        {jobs.slice(0, 5).map((row) => (
+                          <div
+                            key={`week-job-${row.job.id || row.job.name}`}
+                            className={`text-[11px] px-1.5 py-0.5 rounded border truncate ${getAgentColorClass(row.job.agentId || '', uniqueAgents)}`}
+                            title={`${row.job.name} — ${row.runCount} run${row.runCount > 1 ? 's' : ''}`}
+                          >
+                            {row.job.name}
+                          </div>
+                        ))}
+                        {jobs.length > 5 && (
+                          <div className="text-[10px] text-muted-foreground">+{jobs.length - 5} more</div>
+                        )}
+                      </div>
+                      {totalRuns > 0 && (
+                        <div className="text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
+                          {totalRuns.toLocaleString()} total runs
                         </div>
-                      ))}
-                      {jobs.length > 4 && (
-                        <div className="text-xs text-muted-foreground">+{jobs.length - 4} more</div>
                       )}
                     </div>
-                  </Button>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -663,23 +766,36 @@ export function CronManagementPanel() {
               <div className="grid grid-cols-7 gap-2">
                 {jobsByMonthDay.map(({ date, jobs }) => {
                   const inCurrentMonth = date.getMonth() === calendarDate.getMonth()
+                  const totalRuns = jobs.reduce((sum, j) => sum + j.runCount, 0)
                   return (
                     <div
                       key={`month-${date.toISOString()}`}
                       onClick={() => setSelectedCalendarDate(startOfDay(date))}
                       className={`border border-border rounded-lg p-2 min-h-24 cursor-pointer ${inCurrentMonth ? 'bg-transparent' : 'bg-secondary/30'} ${isSameDay(date, selectedCalendarDate) ? 'border-primary/40 bg-primary/10' : 'hover:bg-secondary/50'}`}
                     >
-                      <div className={`text-xs mb-1 ${isSameDay(date, new Date()) ? 'text-primary font-semibold' : inCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {date.getDate()}
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs ${isSameDay(date, new Date()) ? 'text-primary font-semibold' : inCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
+                          {date.getDate()}
+                        </span>
+                        {jobs.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">{jobs.length}</span>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        {jobs.slice(0, 2).map((row) => (
-                          <div key={`month-job-${row.job.id || row.job.name}-${row.atMs}`} className="text-[11px] px-1.5 py-0.5 rounded bg-secondary text-foreground truncate" title={row.job.name}>
+                      <div className="space-y-0.5 mt-1">
+                        {jobs.slice(0, 3).map((row) => (
+                          <div
+                            key={`month-job-${row.job.id || row.job.name}`}
+                            className={`text-[10px] px-1 py-0.5 rounded border truncate ${getAgentColorClass(row.job.agentId || '', uniqueAgents)}`}
+                            title={`${row.job.name} — ${row.runCount} runs`}
+                          >
                             {row.job.name}
                           </div>
                         ))}
-                        {jobs.length > 2 && <div className="text-[11px] text-muted-foreground">+{jobs.length - 2}</div>}
+                        {jobs.length > 3 && <div className="text-[10px] text-muted-foreground">+{jobs.length - 3}</div>}
                       </div>
+                      {totalRuns > 0 && jobs.length > 0 && (
+                        <div className="text-[9px] text-muted-foreground mt-0.5">{totalRuns.toLocaleString()} runs</div>
+                      )}
                     </div>
                   )
                 })}
@@ -692,22 +808,35 @@ export function CronManagementPanel() {
                   <h3 className="text-sm font-medium text-foreground">
                     {selectedCalendarDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
                   </h3>
-                  <span className="text-xs text-muted-foreground">{selectedDayJobs.length} jobs</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{selectedDayJobs.length} jobs</span>
+                    {selectedDayJobs.length > 0 && (
+                      <span className="text-xs text-muted-foreground">· {selectedDayJobs.reduce((s, r) => s + r.runCount, 0).toLocaleString()} total runs</span>
+                    )}
+                  </div>
                 </div>
                 {selectedDayJobs.length === 0 ? (
                   <div className="text-sm text-muted-foreground">No jobs scheduled on this date.</div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto">
                     {selectedDayJobs.map((row) => (
                       <Button
-                        key={`selected-day-${row.job.id || row.job.name}-${row.atMs}`}
+                        key={`selected-day-${row.job.id || row.job.name}`}
                         onClick={() => handleJobSelect(row.job)}
                         variant="outline"
-                        className="w-full text-left p-2 h-auto bg-secondary/40 hover:bg-secondary flex flex-col items-start"
+                        className={`w-full text-left p-2 h-auto flex items-center justify-between gap-2 border ${getAgentColorClass(row.job.agentId || '', uniqueAgents)}`}
                       >
-                        <div className="text-sm font-medium text-foreground">{row.job.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(row.atMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} · {row.job.agentId || 'system'}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-foreground truncate">{row.job.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {row.job.agentId || 'system'} · {describeCronFrequency(row.job.schedule)}
+                          </div>
+                        </div>
+                        <div className="text-right whitespace-nowrap">
+                          <div className="text-xs text-foreground">{row.runCount} run{row.runCount > 1 ? 's' : ''}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            first {new Date(row.firstRunMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
                       </Button>
                     ))}
@@ -718,165 +847,240 @@ export function CronManagementPanel() {
           </div>
         </div>
 
-        {/* Job List */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Scheduled Jobs</h2>
-          
+        {/* Job List — compact table */}
+        <div className="lg:col-span-2 bg-card border border-border rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Scheduled Jobs</h2>
+            <span className="text-xs text-muted-foreground">{filteredJobs.length} of {cronJobs.length} jobs</span>
+          </div>
+
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
               <span className="ml-3 text-muted-foreground">Loading jobs...</span>
             </div>
           ) : cronJobs.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              No cron jobs found
-            </div>
+            <div className="text-center text-muted-foreground py-8">No cron jobs found</div>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {cronJobs.map((job, index) => {
-                        const isLocalAutomation = job.delivery === 'local' && job.agentId === 'mission-control-local'
-                        return (
-                        <div 
-                          key={`${job.name}-${index}`} 
-                          className={`border border-border rounded-lg p-4 cursor-pointer transition-colors ${
-                    selectedJob?.name === job.name 
-                      ? 'bg-primary/10 border-primary/30' 
-                      : 'hover:bg-secondary'
-                  }`}
-                  onClick={() => handleJobSelect(job)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-foreground">{job.name}</span>
-                        <div className={`w-2 h-2 rounded-full ${job.enabled ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-                        
-                        {/* Job Type Tag */}
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
-                          isLocalAutomation ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' :
-                          job.name.includes('backup') ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                          job.name.includes('alert') ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                          job.name.includes('brief') ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                          job.name.includes('scan') ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                          'bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20'
-                        }`}>
-                          {isLocalAutomation ? 'LOCAL AUTO' :
-                           job.name.includes('backup') ? 'BACKUP' :
-                           job.name.includes('alert') ? 'ALERT' :
-                           job.name.includes('brief') ? 'BRIEF' :
-                           job.name.includes('scan') ? 'SCAN' :
-                           'TASK'}
-                        </span>
-
-                        {job.lastStatus && (
-                          <span className={`px-2 py-1 text-xs rounded-full ${getStatusBg(job.lastStatus)} ${getStatusColor(job.lastStatus)}`}>
-                            {job.lastStatus}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="pb-2 pr-3 font-medium">Job Name</th>
+                    <th className="pb-2 pr-3 font-medium">Agent</th>
+                    <th className="pb-2 pr-3 font-medium">Schedule</th>
+                    <th className="pb-2 pr-3 font-medium">Model</th>
+                    <th className="pb-2 pr-3 font-medium">Status</th>
+                    <th className="pb-2 pr-3 font-medium">Last Run</th>
+                    <th className="pb-2 pr-3 font-medium">Next Run</th>
+                    <th className="pb-2 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {filteredJobs.map((job, index) => {
+                    const isLocalAutomation = job.delivery === 'local' && job.agentId === 'mission-control-local'
+                    const isSelected = selectedJob?.name === job.name
+                    return (
+                      <tr
+                        key={`${job.name}-${index}`}
+                        onClick={() => handleJobSelect(job)}
+                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-primary/10' : 'hover:bg-secondary/50'}`}
+                      >
+                        <td className="py-2.5 pr-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${job.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
+                            <span className="font-medium text-foreground truncate max-w-48">{job.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <span className={`text-xs px-1.5 py-0.5 rounded border ${getAgentColorClass(job.agentId || '', uniqueAgents)}`}>
+                            {job.agentId || 'system'}
                           </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1 font-mono">
-                        {job.schedule}
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1 truncate">
-                        {job.command}
-                      </div>
-                      {job.model && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Model: <span className="font-mono">{job.model}</span>
-                        </div>
-                      )}
-                      {job.lastRun && (
-                        <div className="text-xs text-muted-foreground mt-2">
-                          Last run: {formatRelativeTime(job.lastRun)}
-                        </div>
-                      )}
-                      {job.nextRun && (
-                        <div className="text-xs text-primary/70 mt-1">
-                          Next: {formatRelativeTime(job.nextRun, true)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex space-x-1 ml-4">
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleJob(job)
-                        }}
-                        disabled={isLocalAutomation}
-                        size="xs"
-                        className={
-                          job.enabled
-                            ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/30'
-                            : 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border-green-500/30'
-                        }
-                      >
-                        {job.enabled ? 'Disable' : 'Enable'}
-                      </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          triggerJob(job)
-                        }}
-                        size="xs"
-                        className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-blue-500/30"
-                      >
-                        Run
-                      </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeJob(job)
-                        }}
-                        disabled={isLocalAutomation}
-                        variant="destructive"
-                        size="xs"
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )})}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <div className="text-xs">
+                            <span className="text-foreground">{describeCronFrequency(job.schedule)}</span>
+                            <div className="text-muted-foreground font-mono text-[10px]">{job.schedule}</div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          {job.model ? (
+                            <span className="text-xs font-mono text-muted-foreground">{job.model}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">--</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          {job.lastStatus ? (
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${getStatusBg(job.lastStatus)} ${getStatusColor(job.lastStatus)}`}>
+                              {job.lastStatus}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">--</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {job.lastRun ? formatRelativeTime(job.lastRun) : '--'}
+                        </td>
+                        <td className="py-2.5 pr-3 text-xs text-primary/70 whitespace-nowrap">
+                          {job.nextRun ? formatRelativeTime(job.nextRun, true) : '--'}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              onClick={(e) => { e.stopPropagation(); toggleJob(job) }}
+                              disabled={isLocalAutomation}
+                              size="xs"
+                              variant="outline"
+                              className="text-[10px] h-6 px-1.5"
+                            >
+                              {job.enabled ? 'Disable' : 'Enable'}
+                            </Button>
+                            <Button
+                              onClick={(e) => { e.stopPropagation(); triggerJob(job) }}
+                              size="xs"
+                              variant="outline"
+                              className="text-[10px] h-6 px-1.5"
+                            >
+                              Run
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
 
-        {/* Job Details & Logs */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {selectedJob ? `Job Details: ${selectedJob.name}` : 'Job Details'}
-          </h2>
-          
-          {selectedJob ? (
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium text-foreground mb-2">Configuration</h3>
-                <div className="bg-secondary rounded p-3 space-y-2 text-sm">
-                  <div><span className="text-muted-foreground">Schedule:</span> <code className="font-mono">{selectedJob.schedule}</code></div>
-                  <div><span className="text-muted-foreground">Command:</span> <code className="font-mono text-xs">{selectedJob.command}</code></div>
-                  {selectedJob.model && (
-                    <div><span className="text-muted-foreground">Model:</span> <code className="font-mono text-xs">{selectedJob.model}</code></div>
-                  )}
-                  <div><span className="text-muted-foreground">Status:</span> {selectedJob.enabled ? '🟢 Enabled' : '🔴 Disabled'}</div>
-                  {selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local' && (
-                    <div><span className="text-muted-foreground">Source:</span> Local scheduler automation</div>
-                  )}
-                  {selectedJob.nextRun && (
-                    <div><span className="text-muted-foreground">Next run:</span> {new Date(selectedJob.nextRun).toLocaleString()}</div>
-                  )}
+        {/* Job Detail Panel — expanded when a job is selected */}
+        {selectedJob && (
+          <div className="lg:col-span-2 bg-card border border-border rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-foreground">{selectedJob.name}</h2>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 text-xs rounded-full ${selectedJob.enabled ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'}`}>
+                  {selectedJob.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+                {selectedJob.lastStatus && (
+                  <span className={`px-2 py-1 text-xs rounded-full ${getStatusBg(selectedJob.lastStatus)} ${getStatusColor(selectedJob.lastStatus)}`}>
+                    {selectedJob.lastStatus}
+                  </span>
+                )}
+                <Button onClick={() => setSelectedJob(null)} variant="ghost" size="sm" className="text-xs">Close</Button>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Left: Configuration */}
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Configuration</h3>
+                  <div className="bg-secondary/50 rounded-lg p-4 space-y-3">
+                    <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
+                      <span className="text-muted-foreground">Schedule</span>
+                      <div>
+                        <code className="font-mono text-foreground">{selectedJob.schedule}</code>
+                        <div className="text-xs text-muted-foreground">{describeCronFrequency(selectedJob.schedule)}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
+                      <span className="text-muted-foreground">Agent</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded border w-fit ${getAgentColorClass(selectedJob.agentId || '', uniqueAgents)}`}>
+                        {selectedJob.agentId || 'system'}
+                      </span>
+                    </div>
+                    {selectedJob.model && (
+                      <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
+                        <span className="text-muted-foreground">Model</span>
+                        <code className="font-mono text-xs text-foreground">{selectedJob.model}</code>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
+                      <span className="text-muted-foreground">Delivery</span>
+                      <span className="text-foreground text-xs">{selectedJob.delivery || 'gateway'}</span>
+                    </div>
+                    {selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local' && (
+                      <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
+                        <span className="text-muted-foreground">Source</span>
+                        <span className="text-foreground text-xs">Local scheduler automation</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Command</h3>
+                  <pre className="bg-secondary/50 rounded-lg p-4 text-xs font-mono text-foreground whitespace-pre-wrap break-all overflow-x-auto max-h-32">{selectedJob.command}</pre>
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Timing</h3>
+                  <div className="bg-secondary/50 rounded-lg p-4 space-y-2">
+                    {selectedJob.lastRun && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Last run</span>
+                        <span className="text-foreground">{new Date(selectedJob.lastRun).toLocaleString()} ({formatRelativeTime(selectedJob.lastRun)})</span>
+                      </div>
+                    )}
+                    {selectedJob.nextRun && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Next run</span>
+                        <span className="text-primary">{new Date(selectedJob.nextRun).toLocaleString()} ({formatRelativeTime(selectedJob.nextRun, true)})</span>
+                      </div>
+                    )}
+                    {selectedJob.timezone && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Timezone</span>
+                        <span className="text-foreground">{selectedJob.timezone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => triggerJob(selectedJob)}
+                    size="sm"
+                    className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-blue-500/30"
+                  >
+                    Run Now
+                  </Button>
+                  <Button
+                    onClick={() => toggleJob(selectedJob)}
+                    disabled={selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local'}
+                    size="sm"
+                    className={selectedJob.enabled
+                      ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/30'
+                      : 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border-green-500/30'}
+                  >
+                    {selectedJob.enabled ? 'Disable' : 'Enable'}
+                  </Button>
+                  <Button
+                    onClick={() => removeJob(selectedJob)}
+                    disabled={selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local'}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    Remove
+                  </Button>
                 </div>
               </div>
 
+              {/* Right: Logs */}
               <div>
-                <h3 className="font-medium text-foreground mb-2">Recent Logs</h3>
-                <div className="bg-secondary rounded p-3 max-h-64 overflow-y-auto">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Recent Logs</h3>
+                <div className="bg-secondary/50 rounded-lg p-4 max-h-80 overflow-y-auto">
                   {jobLogs.length === 0 ? (
                     <div className="text-muted-foreground text-sm">No logs available</div>
                   ) : (
-                    <div className="space-y-1 text-xs font-mono">
-                      {jobLogs.map((log, index) => (
+                    <div className="space-y-1.5 text-xs font-mono">
+                      {jobLogs.map((logEntry, index) => (
                         <div key={index} className="text-muted-foreground">
-                          <span className="text-xs">[{new Date(log.timestamp).toLocaleString()}]</span> {log.message}
+                          <span className="text-[10px] text-muted-foreground/60">[{new Date(logEntry.timestamp).toLocaleString()}]</span>{' '}
+                          {logEntry.message}
                         </div>
                       ))}
                     </div>
@@ -884,12 +1088,8 @@ export function CronManagementPanel() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              Select a job to view details and logs
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Claude Code Teams Overview */}

@@ -53,7 +53,6 @@ const navGroups: NavGroup[] = [
     label: 'AUTOMATE',
     items: [
       { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
-      { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false },
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
       { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
       { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
@@ -79,7 +78,7 @@ const navGroups: NavGroup[] = [
   },
 ]
 
-const gatewayOnlyPanels = new Set(['gateways', 'gateway-config', 'spawn'])
+const gatewayOnlyPanels = new Set(['gateways', 'gateway-config'])
 const adminOnlyPanels = new Set<string>([])
 
 export function NavRail() {
@@ -1077,15 +1076,6 @@ function LogsIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" />
       <path d="M5 5h6M5 8h6M5 11h3" />
-    </svg>
-  )
-}
-
-function SpawnIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 2v12M8 2l-3 3M8 2l3 3" />
-      <path d="M3 10h10" />
     </svg>
   )
 }

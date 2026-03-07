@@ -6,7 +6,6 @@ import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
 import { Dashboard } from '@/components/dashboard/dashboard'
-import { AgentSpawnPanel } from '@/components/panels/agent-spawn-panel'
 import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { CronManagementPanel } from '@/components/panels/cron-management-panel'
 import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
@@ -319,9 +318,6 @@ function ContentRouter({ tab }: { tab: string }) {
       return <NotificationsPanel />
     case 'standup':
       return <StandupPanel />
-    case 'spawn':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
-      return <AgentSpawnPanel />
     case 'sessions':
       return <ChatPagePanel />
     case 'logs':

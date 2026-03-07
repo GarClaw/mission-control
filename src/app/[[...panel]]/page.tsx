@@ -38,6 +38,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
 import { UpdateBanner } from '@/components/layout/update-banner'
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
+import { Loader } from '@/components/ui/loader'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
@@ -206,29 +207,7 @@ export default function Home() {
   }, [connect, pathname, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setShowOnboarding])
 
   if (!isClient) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-6">
-          {/* Logo with glow pulse */}
-          <div className="relative">
-            <div className="absolute -inset-3 rounded-2xl bg-primary/10 blur-xl animate-glow-pulse" />
-            <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-surface-1 border border-border/50 flex items-center justify-center shadow-lg shadow-primary/5">
-              <img src="/brand/mc-logo-128.png" alt="Mission Control logo" className="w-full h-full object-cover" />
-            </div>
-          </div>
-
-          {/* Animated loading dots */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '0ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '300ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: '600ms' }} />
-            </div>
-            <span className="text-sm text-muted-foreground font-medium tracking-wide">Loading Mission Control</span>
-          </div>
-        </div>
-      </div>
-    )
+    return <Loader variant="page" />
   }
 
   return (

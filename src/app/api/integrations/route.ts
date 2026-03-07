@@ -18,7 +18,7 @@ import { detectProviderSubscriptions } from '@/lib/provider-subscriptions'
 interface IntegrationDef {
   id: string
   name: string
-  category: 'ai' | 'search' | 'social' | 'messaging' | 'devtools' | 'security' | 'infra'
+  category: 'ai' | 'search' | 'social' | 'messaging' | 'devtools' | 'security' | 'infra' | 'productivity'
   envVars: string[]
   vaultItem?: string // 1Password item name
   testable?: boolean
@@ -30,6 +30,7 @@ interface IntegrationProbeSnapshot {
   xint: { installed: boolean; oauthConfigured: boolean; envConfigured: boolean }
   ollamaInstalled: boolean
   ollamaReachable: boolean
+  gwsInstalled: boolean
 }
 
 let integrationProbeCache: { ts: number; value: IntegrationProbeSnapshot } | null = null
@@ -63,6 +64,16 @@ const INTEGRATIONS: IntegrationDef[] = [
   // Dev Tools
   { id: 'github', name: 'GitHub', category: 'devtools', envVars: ['GITHUB_TOKEN'], vaultItem: 'openclaw-github-token', testable: true },
 
+  // Productivity
+  {
+    id: 'google_workspace',
+    name: 'Google Workspace',
+    category: 'productivity',
+    envVars: ['GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE'],
+    testable: true,
+    recommendation: 'Install: npm i -g @googleworkspace/cli — then run `gws auth login` or set a service account credentials file.',
+  },
+
   // Security
   { id: 'onepassword', name: '1Password', category: 'security', envVars: ['OP_SERVICE_ACCOUNT_TOKEN'] },
 
@@ -79,6 +90,7 @@ const CATEGORIES: Record<string, { label: string; order: number }> = {
   devtools: { label: 'Dev Tools', order: 4 },
   security: { label: 'Security', order: 5 },
   infra: { label: 'Infrastructure', order: 6 },
+  productivity: { label: 'Productivity', order: 7 },
 }
 
 // Vars that must never be written via this API
@@ -245,6 +257,7 @@ async function getIntegrationProbeSnapshot(): Promise<IntegrationProbeSnapshot> 
     xint: checkXintState(),
     ollamaInstalled: checkCommandAvailable('ollama'),
     ollamaReachable: await checkOllamaReachable(),
+    gwsInstalled: checkCommandAvailable('gws'),
   }
   integrationProbeCache = { ts: now, value }
   return value
@@ -303,7 +316,7 @@ export async function GET(request: NextRequest) {
   }
 
   const probe = await getIntegrationProbeSnapshot()
-  const { opAvailable, xint, ollamaInstalled, ollamaReachable } = probe
+  const { opAvailable, xint, ollamaInstalled, ollamaReachable, gwsInstalled } = probe
   const providerSubscriptions = detectProviderSubscriptions()
 
   const integrations = INTEGRATIONS.map(def => {
@@ -359,6 +372,16 @@ export async function GET(request: NextRequest) {
         anySet = true
       } else if (ollamaInstalled) {
         vars[primaryVar] = { redacted: 'installed (daemon not reachable)', set: true }
+        allSet = false
+        anySet = true
+      }
+    }
+
+    // Google Workspace CLI detection
+    if (def.id === 'google_workspace' && !anySet) {
+      const primaryVar = def.envVars[0]
+      if (gwsInstalled) {
+        vars[primaryVar] = { redacted: 'gws CLI installed (run `gws auth login`)', set: true }
         allSet = false
         anySet = true
       }
@@ -660,6 +683,29 @@ async function handleTest(
         result = res.ok
           ? { ok: true, detail: 'API key valid' }
           : { ok: false, detail: `HTTP ${res.status}` }
+        break
+      }
+
+      case 'google_workspace': {
+        const credsFile = getEffectiveEnvValue(envMap, 'GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE')
+        const gwsAvail = checkCommandAvailable('gws')
+        if (!gwsAvail) {
+          result = { ok: false, detail: 'gws CLI not installed — run: npm i -g @googleworkspace/cli' }
+          break
+        }
+        try {
+          const env: NodeJS.ProcessEnv = { ...process.env }
+          if (credsFile) env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE = credsFile
+          execFileSync('gws', ['auth', 'status'], {
+            timeout: 10000,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env,
+          })
+          result = { ok: true, detail: 'Authenticated' }
+        } catch (err: any) {
+          const stderr = err.stderr?.toString() || ''
+          result = { ok: false, detail: stderr.slice(0, 120) || 'Not authenticated — run `gws auth login`' }
+        }
         break
       }
 

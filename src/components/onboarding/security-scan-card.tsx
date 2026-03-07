@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { Loader } from '@/components/ui/loader'
 
 interface Check {
   id: string
@@ -56,11 +57,30 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
   os: { label: 'OS Security', icon: 'S' },
 }
 
-export function SecurityScanCard({ compact = false }: { compact?: boolean }) {
+export function SecurityScanCard({ compact = false, autoScan = false }: { compact?: boolean; autoScan?: boolean }) {
   const [result, setResult] = useState<ScanResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
+  const [copiedFix, setCopiedFix] = useState<string | null>(null)
+
+  const copyFix = useCallback(async (fix: string, checkId: string) => {
+    try {
+      await navigator.clipboard.writeText(fix)
+      setCopiedFix(checkId)
+      setTimeout(() => setCopiedFix(null), 2000)
+    } catch {
+      // Fallback
+      const el = document.createElement('textarea')
+      el.value = fix
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopiedFix(checkId)
+      setTimeout(() => setCopiedFix(null), 2000)
+    }
+  }, [])
 
   const runScan = useCallback(async () => {
     setLoading(true)
@@ -79,6 +99,12 @@ export function SecurityScanCard({ compact = false }: { compact?: boolean }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (autoScan && !result && !loading && !error) {
+      runScan()
+    }
+  }, [autoScan, result, loading, error, runScan])
+
   if (!result && !loading && !error) {
     return (
       <div className="flex flex-col items-center gap-4 py-6">
@@ -95,11 +121,8 @@ export function SecurityScanCard({ compact = false }: { compact?: boolean }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-8">
-        <div className="w-1.5 h-1.5 rounded-full bg-void-cyan animate-pulse" />
-        <div className="w-1.5 h-1.5 rounded-full bg-void-cyan animate-pulse" style={{ animationDelay: '200ms' }} />
-        <div className="w-1.5 h-1.5 rounded-full bg-void-cyan animate-pulse" style={{ animationDelay: '400ms' }} />
-        <span className="text-sm text-muted-foreground ml-2">Scanning...</span>
+      <div className="flex items-center justify-center py-8">
+        <Loader variant="inline" label="Scanning..." />
       </div>
     )
   }
@@ -147,6 +170,18 @@ export function SecurityScanCard({ compact = false }: { compact?: boolean }) {
         />
       </div>
 
+      {/* Issue summary */}
+      {(() => {
+        const totalFailing = Object.values(result.categories).reduce(
+          (sum, cat) => sum + cat.checks.filter(c => c.status !== 'pass').length, 0
+        )
+        return totalFailing > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {totalFailing} issue{totalFailing > 1 ? 's' : ''} found — expand categories to see fixes
+          </p>
+        ) : null
+      })()}
+
       {/* Categories */}
       <div className="space-y-2">
         {Object.entries(result.categories).map(([key, cat]) => {
@@ -188,7 +223,16 @@ export function SecurityScanCard({ compact = false }: { compact?: boolean }) {
                         </div>
                         <p className="text-xs text-muted-foreground">{check.detail}</p>
                         {check.fix && check.status !== 'pass' && (
-                          <p className="text-xs text-void-cyan/70 mt-0.5">Fix: {check.fix}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="text-xs text-void-cyan/70 flex-1 min-w-0">Fix: {check.fix}</p>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyFix(check.fix, check.id) }}
+                              className="shrink-0 px-1.5 py-0.5 text-2xs rounded border border-border/50 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                              title="Copy fix command"
+                            >
+                              {copiedFix === check.id ? 'Copied' : 'Copy'}
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

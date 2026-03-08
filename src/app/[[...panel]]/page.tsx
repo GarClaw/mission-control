@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
+import { StatusHeader } from '@/components/layout/status-header'
 import { LiveFeed } from '@/components/layout/live-feed'
 import { Dashboard } from '@/components/dashboard/dashboard'
 import { AgentSpawnPanel } from '@/components/panels/agent-spawn-panel'
@@ -35,6 +36,7 @@ import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { ProjectsPanel } from '@/components/panels/projects-panel'
 import { CalendarPanel } from '@/components/panels/calendar-panel'
 import { DocsPanel } from '@/components/panels/docs-panel'
+import { IntegrationsHealthPanel } from '@/components/panels/integrations-health-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -159,6 +161,7 @@ export default function Home() {
       {/* Center: Header + Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <HeaderBar />
+        <StatusHeader />
         <LocalModeBanner />
         <UpdateBanner />
         <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0" role="main">
@@ -268,6 +271,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GatewayConfigPanel />
     case 'integrations':
       return <IntegrationsPanel />
+    case 'health':
+      return <IntegrationsHealthPanel />
     case 'settings':
       return <SettingsPanel />
     case 'github':

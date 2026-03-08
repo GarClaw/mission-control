@@ -64,6 +64,7 @@ const navGroups: NavGroup[] = [
       { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
       { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false, requiresGateway: true },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
+      { id: 'health', label: 'Health', icon: <HealthIcon />, priority: false },
       { id: 'workspaces', label: 'Workspaces', icon: <SuperAdminIcon />, priority: false },
       { id: 'super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
@@ -594,6 +595,16 @@ function SuperAdminIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 1.5l1.4 2.8 3.1.5-2.2 2.2.5 3.1L8 8.8 5.2 10l.5-3.1L3.5 4.8l3.1-.5L8 1.5z" />
       <path d="M2 13.5h12" />
+    </svg>
+  )
+}
+
+function HealthIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="7" />
+      <path d="M8 5v3M6.5 8h3" />
+      <circle cx="13" cy="3" r="1.5" fill="currentColor" />
     </svg>
   )
 }

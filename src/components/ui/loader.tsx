@@ -2,58 +2,6 @@
 
 import { APP_VERSION } from '@/lib/version'
 
-function OpenClawMark({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M9.06145 23.1079C5.26816 22.3769 -3.39077 20.6274 1.4173 5.06384C9.6344 6.09939 16.9728 14.0644 9.06145 23.1079Z" fill="url(#oc0)" />
-      <path d="M8.91928 23.0939C5.27642 21.2223 0.78371 4.20891 17.0071 0C20.7569 7.19341 19.6212 16.5452 8.91928 23.0939Z" fill="url(#oc1)" />
-      <path d="M8.91388 23.0788C8.73534 19.8817 10.1585 9.08525 23.5699 13.1107C23.1812 20.1229 18.984 26.4182 8.91388 23.0788Z" fill="url(#oc2)" />
-      <defs>
-        <linearGradient id="oc0" x1="3.776" y1="5.916" x2="5.232" y2="21.559" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#18E299" /><stop offset="1" stopColor="#15803D" />
-        </linearGradient>
-        <linearGradient id="oc1" x1="12.171" y1="-0.718" x2="10.190" y2="22.983" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#16A34A" /><stop offset="1" stopColor="#4ADE80" />
-        </linearGradient>
-        <linearGradient id="oc2" x1="23.133" y1="15.353" x2="9.338" y2="18.520" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#4ADE80" /><stop offset="1" stopColor="#0D9373" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
-
-function MissionControlMark({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Central node */}
-      <circle cx="24" cy="24" r="4" fill="currentColor" fillOpacity="0.9" />
-      <circle cx="24" cy="24" r="6" stroke="currentColor" strokeWidth="1" strokeOpacity="0.3" />
-      {/* Satellite nodes */}
-      <circle cx="24" cy="8" r="2.5" fill="currentColor" fillOpacity="0.7" />
-      <circle cx="38" cy="16" r="2.5" fill="currentColor" fillOpacity="0.7" />
-      <circle cx="38" cy="32" r="2.5" fill="currentColor" fillOpacity="0.7" />
-      <circle cx="24" cy="40" r="2.5" fill="currentColor" fillOpacity="0.7" />
-      <circle cx="10" cy="32" r="2.5" fill="currentColor" fillOpacity="0.7" />
-      <circle cx="10" cy="16" r="2.5" fill="currentColor" fillOpacity="0.7" />
-      {/* Spokes */}
-      <line x1="24" y1="18" x2="24" y2="10.5" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
-      <line x1="29" y1="20" x2="35.5" y2="16" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
-      <line x1="29" y1="28" x2="35.5" y2="32" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
-      <line x1="24" y1="30" x2="24" y2="37.5" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
-      <line x1="19" y1="28" x2="12.5" y2="32" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
-      <line x1="19" y1="20" x2="12.5" y2="16" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
-      {/* Outer ring segments */}
-      <line x1="26" y1="8" x2="36" y2="15" stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.2" />
-      <line x1="38" y1="18.5" x2="38" y2="29.5" stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.2" />
-      <line x1="36" y1="33" x2="26" y2="40" stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.2" />
-      <line x1="22" y1="40" x2="12" y2="33" stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.2" />
-      <line x1="10" y1="29.5" x2="10" y2="18.5" stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.2" />
-      <line x1="12" y1="15" x2="22" y2="8" stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.2" />
-    </svg>
-  )
-}
-
 function ClaudeMark({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <svg className={className} style={style} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -127,9 +75,9 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
           />
           {/* Phase 1: Converging pair (fades out at 1.8s) */}
           <div className="absolute inset-0 flex items-center justify-center animate-pair-fade-out">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <div className="opacity-0 animate-converge-left">
-                <OpenClawMark className="w-10 h-10" />
+                <img src="/brand/openclaw-logo.png" alt="OpenClaw" className="w-11 h-11 rounded-lg" />
               </div>
               <div className="w-1 h-1 rounded-full bg-primary opacity-0 animate-converge-burst" />
               <div className="opacity-0 animate-converge-right">
@@ -140,7 +88,7 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
           {/* Phase 2: MC mark emerges (fades in at 2.0s) */}
           <div className="absolute inset-0 flex items-center justify-center opacity-0 animate-mc-fade-in">
             <div className="animate-float" style={{ animationDelay: '2.7s' }}>
-              <MissionControlMark className="w-14 h-14 text-primary" />
+              <img src="/brand/mc-logo-128.png" alt="Mission Control" className="w-14 h-14" />
             </div>
           </div>
         </div>

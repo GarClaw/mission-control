@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 type HealthStatus = 'healthy' | 'warning' | 'error' | 'unknown'
 
@@ -29,9 +33,9 @@ function getSecret(path: string): string | null {
 
 async function checkTradier(): Promise<HealthCheckResult> {
   try {
-    const token = getSecret('broker/tradier')
+    const token = process.env.TRADIER_API_TOKEN || getSecret('broker/tradier')
     if (!token) {
-      return { status: 'error', message: 'No Tradier API token configured' }
+      return { status: 'error', message: 'No Tradier API token configured (set TRADIER_API_TOKEN in .env)' }
     }
 
     const res = await fetch('https://api.tradier.com/v1/accounts/6YA26900/balances', {
@@ -69,30 +73,36 @@ async function checkRallies(): Promise<HealthCheckResult> {
 
 async function checkHomeAssistant(): Promise<HealthCheckResult> {
   try {
-    // Check if ha-mcp is available via mcporter
-    // For now, just check if the config file exists
-    const haDir = join(homedir(), '.config', 'home-assistant')
-    if (!existsSync(haDir)) {
-      return { status: 'unknown', message: 'HA config not found' }
+    // Try Nabu Casa endpoint (used for external URL)
+    const nabuUrl = process.env.HA_NABU_URL || 'https://dtxvovshca7bluhqiik2jjsfgz0yt2mj.ui.nabu.casa'
+    const res = await fetch(`${nabuUrl}/api/`, {
+      signal: AbortSignal.timeout(6000),
+    })
+    if (res.ok || res.status === 401) {
+      // 401 means HA is up but needs auth — still healthy
+      return { status: 'healthy', message: 'Home Assistant reachable' }
     }
-    return { status: 'healthy', message: 'Config present' }
+    return { status: 'warning', message: `HTTP ${res.status}` }
   } catch (e) {
-    return { status: 'unknown', message: 'Cannot check HA' }
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    return { status: 'error', message: `Unreachable: ${msg}` }
   }
 }
 
 async function checkGmail(): Promise<HealthCheckResult> {
   try {
-    // Check if gog is available and can authenticate
-    // This requires a shell call which isn't available in the API
-    // For now, check if credentials exist
-    const passExists = existsSync(join(homedir(), '.password-store', 'email', 'gmail.gpg'))
-    if (passExists) {
-      return { status: 'healthy', message: 'Credentials stored' }
+    const { stdout, stderr } = await execAsync(
+      '/opt/homebrew/bin/gog gmail list --max-results=1 2>&1',
+      { timeout: 8000 }
+    )
+    const output = stdout + stderr
+    if (output.includes('error') || output.includes('Error') || output.includes('unauthorized')) {
+      return { status: 'error', message: 'Auth failed — re-run gog auth' }
     }
-    return { status: 'warning', message: 'No stored credentials' }
+    return { status: 'healthy', message: 'Gmail API authenticated' }
   } catch (e) {
-    return { status: 'unknown', message: 'Cannot check Gmail' }
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    return { status: 'warning', message: `Could not verify: ${msg.slice(0, 80)}` }
   }
 }
 
@@ -111,23 +121,30 @@ async function checkDiscordTelegram(): Promise<HealthCheckResult> {
 
 async function checkDiscordBot(): Promise<HealthCheckResult> {
   try {
-    // Check if Discord bot token is configured
-    const token = getSecret('discord/bot-token')
+    const token = process.env.DISCORD_BOT_TOKEN || getSecret('discord/bot-token')
     if (!token) {
       return { status: 'error', message: 'No bot token configured' }
     }
-    // Could make an API call to Discord to verify, but for now just check it exists
-    return { status: 'healthy', message: 'Bot token configured' }
+    // Verify with Discord API
+    const res = await fetch('https://discord.com/api/v10/users/@me', {
+      headers: { Authorization: `Bot ${token}` },
+      signal: AbortSignal.timeout(5000),
+    })
+    if (res.ok) {
+      const data = await res.json() as { username?: string }
+      return { status: 'healthy', message: `Bot online (${data.username ?? 'unknown'})` }
+    }
+    return { status: 'error', message: `Discord API returned ${res.status}` }
   } catch (e) {
-    return { status: 'unknown', message: 'Cannot check bot' }
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    return { status: 'error', message: msg }
   }
 }
 
 async function checkProcessRunning(name: string): Promise<boolean> {
   try {
-    // Would need `ps` command which we can't call from Node easily without exec
-    // For now, return false
-    return false
+    const { stdout } = await execAsync(`pgrep -f "${name}" 2>/dev/null || true`)
+    return stdout.trim().length > 0
   } catch {
     return false
   }

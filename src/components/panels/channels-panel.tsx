@@ -66,6 +66,7 @@ function relativeTime(ts: number): string {
 }
 
 export function ChannelsPanel() {
+  const { connection } = useMissionControl()
   const [snapshot, setSnapshot] = useState<ChannelsSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -150,7 +151,6 @@ export function ChannelsPanel() {
     )
   }
 
-  const { connection } = useMissionControl()
   const channels = snapshot?.channels ?? []
   const gatewayConnected = snapshot?.connected ?? connection.isConnected
 

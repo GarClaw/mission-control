@@ -138,7 +138,8 @@ export function LogViewerPanel() {
   }
 
   const getLogLevelColor = (level: string) => {
-    switch (level.toLowerCase()) {
+    const levelStr = typeof level === 'string' ? level : String(level || '').trim()
+    switch (levelStr.toLowerCase()) {
       case 'error': return 'text-red-400'
       case 'warn': return 'text-yellow-400'
       case 'info': return 'text-blue-400'
@@ -148,7 +149,8 @@ export function LogViewerPanel() {
   }
 
   const getLogLevelBg = (level: string) => {
-    switch (level.toLowerCase()) {
+    const levelStr = typeof level === 'string' ? level : String(level || '').trim()
+    switch (levelStr.toLowerCase()) {
       case 'error': return 'bg-red-500/10 border-red-500/20'
       case 'warn': return 'bg-yellow-500/10 border-yellow-500/20'
       case 'info': return 'bg-blue-500/10 border-blue-500/20'
@@ -160,7 +162,11 @@ export function LogViewerPanel() {
   const filteredLogs = logs.filter(entry => {
     if (logFilters.level && entry.level !== logFilters.level) return false
     if (logFilters.source && entry.source !== logFilters.source) return false
-    if (logFilters.search && !entry.message.toLowerCase().includes(logFilters.search.toLowerCase())) return false
+    if (logFilters.search && entry.message) {
+      const messageStr = typeof entry.message === 'string' ? entry.message : String(entry.message)
+      const searchStr = typeof logFilters.search === 'string' ? logFilters.search : String(logFilters.search)
+      if (!messageStr.toLowerCase().includes(searchStr.toLowerCase())) return false
+    }
     if (logFilters.session && (!entry.session || !entry.session.includes(logFilters.session))) return false
     return true
   })

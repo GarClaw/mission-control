@@ -46,6 +46,7 @@ const navGroups: NavGroup[] = [
     label: 'AUTOMATE',
     items: [
       { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
+      { id: 'calendar', label: 'Calendar', icon: <CalendarIcon />, priority: false },
       { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false, requiresGateway: true },
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
       { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
@@ -623,6 +624,19 @@ function SettingsIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2" />
       <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" />
+    </svg>
+  )
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="2.5" width="14" height="12" rx="1.5" />
+      <path d="M1 6.5h14" />
+      <path d="M5 1v3M11 1v3" />
+      <circle cx="5" cy="10" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="10" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="10" r="0.75" fill="currentColor" stroke="none" />
     </svg>
   )
 }

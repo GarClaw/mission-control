@@ -34,6 +34,7 @@ import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { ProjectsPanel } from '@/components/panels/projects-panel'
 import { CalendarPanel } from '@/components/panels/calendar-panel'
+import { DocsPanel } from '@/components/panels/docs-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -246,6 +247,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <CalendarPanel />
     case 'memory':
       return <MemoryBrowserPanel />
+    case 'docs':
+      return <DocsPanel />
     case 'tokens':
       return <TokenDashboardPanel />
     case 'agent-costs':

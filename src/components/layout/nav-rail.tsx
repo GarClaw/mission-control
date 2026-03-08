@@ -39,6 +39,7 @@ const navGroups: NavGroup[] = [
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
       { id: 'agent-costs', label: 'Agent Costs', icon: <AgentCostsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+      { id: 'docs', label: 'Docs', icon: <DocsIcon />, priority: false },
     ],
   },
   {
@@ -482,6 +483,15 @@ function CronIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="6.5" />
       <path d="M8 4v4l2.5 2.5" />
+    </svg>
+  )
+}
+
+function DocsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 2h12v12H2z" />
+      <path d="M5 5h6M5 8.5h6M5 12h3" />
     </svg>
   )
 }

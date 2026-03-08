@@ -41,16 +41,17 @@ function getAgentData(dbPath: string, agentName: string): AgentGraphData | null 
         .get() as { name: string } | undefined
 
       if (tableCheck) {
+        // Use COUNT only — skip SUM(LENGTH(text)) which forces a full data scan
         const rows = db
           .prepare(
-            'SELECT path, COUNT(*) as chunks, SUM(LENGTH(text)) as text_size FROM chunks GROUP BY path ORDER BY chunks DESC'
+            'SELECT path, COUNT(*) as chunks FROM chunks GROUP BY path ORDER BY chunks DESC'
           )
-          .all() as Array<{ path: string; chunks: number; text_size: number }>
+          .all() as Array<{ path: string; chunks: number }>
 
         files = rows.map((r) => ({
           path: r.path || '(unknown)',
           chunks: r.chunks,
-          textSize: r.text_size || 0,
+          textSize: 0,
         }))
 
         totalChunks = files.reduce((sum, f) => sum + f.chunks, 0)

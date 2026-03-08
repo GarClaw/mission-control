@@ -310,7 +310,6 @@ export function TaskBoardPanel() {
   // Fetch tasks, agents, and projects
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true)
       setError(null)
 
       const tasksQuery = new URLSearchParams()

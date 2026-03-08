@@ -69,7 +69,7 @@ export function SkillsPanel() {
   const [draftContent, setDraftContent] = useState('')
   const [drawerLoading, setDrawerLoading] = useState(false)
   const [drawerError, setDrawerError] = useState<string | null>(null)
-  const [createSource, setCreateSource] = useState('user-codex')
+  const [createSource, setCreateSource] = useState(dashboardMode === 'full' ? 'openclaw' : 'user-codex')
   const [createName, setCreateName] = useState('')
   const [createContent, setCreateContent] = useState('# new-skill\n\nDescribe this skill.\n')
   const [createError, setCreateError] = useState<string | null>(null)
@@ -81,7 +81,7 @@ export function SkillsPanel() {
   const [registryLoading, setRegistryLoading] = useState(false)
   const [registryError, setRegistryError] = useState<string | null>(null)
   const [registrySearched, setRegistrySearched] = useState(false)
-  const [installTarget, setInstallTarget] = useState('user-agents')
+  const [installTarget, setInstallTarget] = useState(dashboardMode === 'full' ? 'openclaw' : 'user-agents')
   const [installing, setInstalling] = useState<string | null>(null)
   const [installMessage, setInstallMessage] = useState<string | null>(null)
   const [scanAll, setScanAll] = useState<{

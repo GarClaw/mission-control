@@ -534,8 +534,11 @@ export function MemoryGraph() {
 
     // Re-measure after paint in case initial observe fired before layout settled
     requestAnimationFrame(() => resize())
+    // Additional delayed retries for flex layout settling
+    const t1 = setTimeout(resize, 100)
+    const t2 = setTimeout(resize, 500)
 
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); clearTimeout(t1); clearTimeout(t2) }
   }, [draw])
 
   // --- Interaction handlers ---

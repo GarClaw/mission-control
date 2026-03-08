@@ -445,6 +445,7 @@ function SessionConversationView({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            from: 'human',
             to: agentName,
             content: prompt,
             conversation_id: `agent_${agentName}`,

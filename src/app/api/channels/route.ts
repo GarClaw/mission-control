@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
+import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 
 const gatewayInternalUrl = `http://${config.gatewayHost}:${config.gatewayPort}`
+
+function gatewayHeaders(): Record<string, string> {
+  const token = getDetectedGatewayToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
 
 /**
  * GET /api/channels - Fetch channel status from the gateway
@@ -29,7 +37,7 @@ export async function GET(request: NextRequest) {
 
       const res = await fetch(`${gatewayInternalUrl}/api/channels/probe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: gatewayHeaders(),
         body: JSON.stringify({ channel }),
         signal: controller.signal,
       })
@@ -52,6 +60,7 @@ export async function GET(request: NextRequest) {
     const timeout = setTimeout(() => controller.abort(), 5000)
 
     const res = await fetch(`${gatewayInternalUrl}/api/channels/status`, {
+      headers: gatewayHeaders(),
       signal: controller.signal,
     })
     clearTimeout(timeout)
